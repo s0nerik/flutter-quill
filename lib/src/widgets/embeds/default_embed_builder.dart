@@ -8,6 +8,7 @@ import '../../models/documents/attribute.dart';
 import '../../models/documents/nodes/embeddable.dart';
 import '../../models/documents/nodes/leaf.dart' as leaf;
 import '../../translations/toolbar.i18n.dart';
+import '../../utils/embeds.dart';
 import '../../utils/platform.dart';
 import '../../utils/string.dart';
 import '../controller.dart';
@@ -16,8 +17,13 @@ import 'image_resizer.dart';
 import 'video_app.dart';
 import 'youtube_video_app.dart';
 
-Widget defaultEmbedBuilder(BuildContext context, QuillController controller,
-    leaf.Embed node, bool readOnly) {
+Widget defaultEmbedBuilder(
+  BuildContext context,
+  QuillController controller,
+  leaf.Embed node,
+  bool readOnly,
+  void Function(GlobalKey videoContainerKey)? onVideoInit,
+) {
   assert(!kIsWeb, 'Please provide EmbedBuilder for Web');
 
   Tuple2<double?, double?>? _widthHeight;
@@ -74,12 +80,14 @@ Widget defaultEmbedBuilder(BuildContext context, QuillController controller,
                               final _screenSize = MediaQuery.of(context).size;
                               return ImageResizer(
                                   onImageResize: (w, h) {
-                                    final res = getImageNode(
+                                    final res = getEmbedNode(
                                         controller, controller.selection.start);
                                     final attr = replaceStyleString(
                                         getImageStyleString(controller), w, h);
-                                    controller.formatText(
-                                        res.item1, 1, StyleAttribute(attr));
+                                    controller
+                                      ..skipRequestKeyboard = true
+                                      ..formatText(
+                                          res.item1, 1, StyleAttribute(attr));
                                   },
                                   imageWidth: _widthHeight?.item1,
                                   imageHeight: _widthHeight?.item2,
@@ -94,7 +102,7 @@ Widget defaultEmbedBuilder(BuildContext context, QuillController controller,
                       text: 'Copy'.i18n,
                       onPressed: () {
                         final imageNode =
-                            getImageNode(controller, controller.selection.start)
+                            getEmbedNode(controller, controller.selection.start)
                                 .item2;
                         final imageUrl = imageNode.value.data;
                         controller.copiedImageUrl =
@@ -108,7 +116,7 @@ Widget defaultEmbedBuilder(BuildContext context, QuillController controller,
                       text: 'Remove'.i18n,
                       onPressed: () {
                         final offset =
-                            getImageNode(controller, controller.selection.start)
+                            getEmbedNode(controller, controller.selection.start)
                                 .item1;
                         controller.replaceText(offset, 1, '',
                             TextSelection.collapsed(offset: offset));
@@ -140,7 +148,12 @@ Widget defaultEmbedBuilder(BuildContext context, QuillController controller,
         return YoutubeVideoApp(
             videoUrl: videoUrl, context: context, readOnly: readOnly);
       }
-      return VideoApp(videoUrl: videoUrl, context: context, readOnly: readOnly);
+      return VideoApp(
+        videoUrl: videoUrl,
+        context: context,
+        readOnly: readOnly,
+        onVideoInit: onVideoInit,
+      );
     default:
       throw UnimplementedError(
         'Embeddable type "${node.value.type}" is not supported by default '
@@ -151,7 +164,7 @@ Widget defaultEmbedBuilder(BuildContext context, QuillController controller,
 }
 
 Widget _menuOptionsForReadonlyImage(
-    BuildContext context, String imageUrl, Image image) {
+    BuildContext context, String imageUrl, Widget image) {
   return GestureDetector(
       onTap: () {
         showDialog(
